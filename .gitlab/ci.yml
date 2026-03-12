@@ -6,7 +6,7 @@ rust-checks:
     DEBIAN_FRONTEND: noninteractive
   before_script:
     - apt-get update -qq
-    - apt-get install -y -qq curl pkg-config
+    - apt-get install -y -qq curl pkg-config build-essential
       libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       libglib2.0-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
