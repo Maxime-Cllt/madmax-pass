@@ -1,0 +1,1 @@
+cargo clippy -- -D warnings -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used

@@ -1,9 +1,9 @@
 [package]
 name = "madmax-pass"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-edition = "2021"
+description = "Local-first Tauri app that generates ultra-secure passwords in Rust with strict length constraints."
+authors = ["Spider Max"]
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,4 +22,33 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rand = "0.8.5"
+rand = "^0.10"
+zeroize = "1"
+base64 = "0.22"
+
+[dev-dependencies]
+criterion = "^0.8"
+
+[[bench]]
+name = "password_bench"
+harness = false
+
+[profile.dev]
+opt-level = 0          # Pas d'optimisation → compilation maximale
+debug = 0              # Pas de debug info → linking plus rapide
+incremental = true     # Recompile uniquement ce qui a changé
+codegen-units = 256    # Parallélise au maximum la codegen
+
+# Les dépendances en dev sont compilées en opt-level 1 :
+# elles ne changent pas souvent donc on les compile une seule fois
+# avec un minimum d'optimisation (évite les builds lents de Tauri/serde à chaque itération)
+[profile.dev.package."*"]
+opt-level = 1
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+overflow-checks = false

@@ -1,0 +1,172 @@
+# ── Tauri release builds + upload au GitLab Package Registry ─────────────────
+#
+# Déclenché uniquement sur tag vX.Y.Z
+#
+# La version est lue depuis src-tauri/Cargo.toml.
+# Les bundles sont uploadés via l'API Generic Packages :
+#   /projects/:id/packages/generic/madmax-pass/:version/:filename
+#
+# Runners requis :
+#   linux  → runner GitLab SaaS standard (pas de tag spécifique)
+#   macos  → runner avec tag `macos`   (SaaS macOS ou self-hosted)
+#   windows→ runner avec tag `windows` (self-hosted)
+# ─────────────────────────────────────────────────────────────────────────────
+
+.build-common:
+  stage: build
+  variables:
+    CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  before_script:
+    - |
+      VERSION=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*= "\(.*\)"/\1/')
+      echo "VERSION=$VERSION" >> build.env
+      echo "Building madmax-pass v$VERSION"
+  cache:
+    key: rust-build-$CI_COMMIT_REF_SLUG-$CI_JOB_NAME
+    paths:
+      - .cargo/registry/
+      - .cargo/git/
+      - src-tauri/target/
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
+
+# ── Linux (deb + AppImage) ────────────────────────────────────────────────────
+build-linux:
+  extends: .build-common
+  image: ubuntu:22.04
+  before_script:
+    - !reference [ .build-common, before_script ]
+    - apt-get update -qq
+    - apt-get install -y -qq curl git pkg-config
+      libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      libglib2.0-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
+    # Rust
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+    - source "$HOME/.cargo/env"
+    # Bun
+    - curl -fsSL https://bun.sh/install | bash
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - bun install --frozen-lockfile
+  script:
+    - source "$HOME/.cargo/env"
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - source build.env
+    - bunx tauri build --bundles deb,appimage
+    - |
+      # Renommage avec version + plateforme
+      find src-tauri/target/release/bundle -type f \( -name "*.deb" -o -name "*.AppImage" \) | while read -r f; do
+        dir=$(dirname "$f")
+        base=$(basename "$f")
+        ext="${base##*.}"
+        mv "$f" "$dir/madmax-pass_${VERSION}_linux-x86_64.${ext}"
+      done
+  artifacts:
+    name: madmax-pass-linux-$CI_COMMIT_TAG
+    paths:
+      - src-tauri/target/release/bundle/**/*.deb
+      - src-tauri/target/release/bundle/**/*.AppImage
+    expire_in: 7 days
+
+# ── macOS (dmg) ───────────────────────────────────────────────────────────────
+build-macos:
+  extends: .build-common
+  tags:
+    - macos
+  before_script:
+    - !reference [ .build-common, before_script ]
+    - brew install pkg-config 2>/dev/null || true
+    # Rust
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+    - source "$HOME/.cargo/env"
+    # Bun
+    - curl -fsSL https://bun.sh/install | bash
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - bun install --frozen-lockfile
+  script:
+    - source "$HOME/.cargo/env"
+    - export PATH="$HOME/.bun/bin:$PATH"
+    - source build.env
+    # Détection architecture
+    - ARCH=$(uname -m | sed 's/x86_64/x86_64/;s/arm64/aarch64/')
+    - bunx tauri build --bundles dmg
+    - |
+      find src-tauri/target/release/bundle/dmg -name "*.dmg" | while read -r f; do
+        dir=$(dirname "$f")
+        mv "$f" "$dir/madmax-pass_${VERSION}_macos-${ARCH}.dmg"
+      done
+  artifacts:
+    name: madmax-pass-macos-$CI_COMMIT_TAG
+    paths:
+      - src-tauri/target/release/bundle/dmg/*.dmg
+    expire_in: 7 days
+
+# ── Windows (nsis + msi) ──────────────────────────────────────────────────────
+build-windows:
+  extends: .build-common
+  tags:
+    - windows
+  before_script:
+    - $VERSION = (Select-String -Path 'src-tauri\Cargo.toml' -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+    - Write-Output "VERSION=$VERSION" | Out-File -Append build.env
+    - Write-Output "Building madmax-pass v$VERSION"
+    # Bun
+    - Invoke-RestMethod https://bun.sh/install.ps1 | Invoke-Expression
+    - $env:PATH = "$env:USERPROFILE\.bun\bin;$env:PATH"
+    - bun install --frozen-lockfile
+  script:
+    - $env:PATH = "$env:USERPROFILE\.bun\bin;$env:PATH"
+    - $VERSION = (Get-Content build.env | Select-String 'VERSION=(.+)').Matches.Groups[1].Value
+    - bun run tauri build --bundles nsis,msi
+    - |
+      Get-ChildItem -Recurse src-tauri\target\release\bundle -Include *.exe,*.msi | ForEach-Object {
+        $dest = Join-Path $_.DirectoryName "madmax-pass_${VERSION}_windows-x86_64$($_.Extension)"
+        Rename-Item $_.FullName $dest
+      }
+  artifacts:
+    name: madmax-pass-windows-$CI_COMMIT_TAG
+    paths:
+      - src-tauri/target/release/bundle/**/*.exe
+      - src-tauri/target/release/bundle/**/*.msi
+    expire_in: 7 days
+
+# ── Upload au GitLab Generic Package Registry ─────────────────────────────────
+publish-packages:
+  stage: deploy
+  image: curlimages/curl:latest
+  needs:
+    - job: build-linux
+      artifacts: true
+    - job: build-macos
+      artifacts: true
+      optional: true
+    - job: build-windows
+      artifacts: true
+      optional: true
+  script:
+    - |
+      VERSION=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*= "\(.*\)"/\1/')
+      REGISTRY="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/madmax-pass/${VERSION}"
+      echo "Upload vers $REGISTRY"
+
+      upload() {
+        local file="$1"
+        local name=$(basename "$file")
+        echo "→ $name"
+        curl --fail-with-body \
+          --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          --upload-file "$file" \
+          "${REGISTRY}/${name}"
+      }
+
+      # Checksum global
+      find src-tauri/target/release/bundle -type f \
+        \( -name "*.deb" -o -name "*.AppImage" -o -name "*.dmg" -o -name "*.exe" -o -name "*.msi" \) \
+        > /tmp/bundle_files.txt
+
+      while IFS= read -r f; do
+        upload "$f"
+      done < /tmp/bundle_files.txt
+
+      echo "Tous les bundles uploadés pour v${VERSION}"
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
