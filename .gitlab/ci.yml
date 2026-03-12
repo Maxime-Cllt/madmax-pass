@@ -10,9 +10,9 @@ rust-checks:
       libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
       libglib2.0-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
-    - source "$HOME/.cargo/env"
+    - source "$CARGO_HOME/env"
   script:
-    - source "$HOME/.cargo/env"
+    - source "$CARGO_HOME/env"
     - cargo test --manifest-path src-tauri/Cargo.toml
     - cargo check --manifest-path src-tauri/Cargo.toml --release
   cache:
