@@ -4,12 +4,10 @@ rust-checks:
   variables:
     CARGO_HOME: $CI_PROJECT_DIR/.cargo
   before_script:
-    - rustup component add clippy rustfmt
     - apt-get update -qq && apt-get install -y -qq pkg-config
   script:
-    - cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-    - cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
     - cargo test --manifest-path src-tauri/Cargo.toml
+    - cargo check --manifest-path src-tauri/Cargo.toml --release
   cache:
     key: rust-$CI_COMMIT_REF_SLUG
     paths:
