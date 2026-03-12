@@ -1,6 +1,6 @@
 # ── Tauri release builds + upload au GitLab Package Registry ─────────────────
 #
-# Déclenché uniquement sur tag vX.Y.Z
+# Déclenché sur push main/master ET sur tag vX.Y.Z
 #
 # La version est lue depuis src-tauri/Cargo.toml.
 # Les bundles sont uploadés via l'API Generic Packages :
@@ -28,6 +28,7 @@
       - .cargo/git/
       - src-tauri/target/
   rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
 
 # ── Linux (deb + AppImage) ────────────────────────────────────────────────────
@@ -169,4 +170,5 @@ publish-packages:
 
       echo "Tous les bundles uploadés pour v${VERSION}"
   rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"'
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
