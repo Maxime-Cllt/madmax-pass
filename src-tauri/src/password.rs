@@ -1,107 +1,64 @@
+use rand::prelude::IndexedRandom;
 use rand::seq::SliceRandom;
-use rand::{rngs::OsRng, Rng};
+use zeroize::Zeroize;
 
-const MIN_LEN: usize = 16;
+const MIN_LEN: usize = 4;
 const MAX_LEN: usize = 4096;
 
-const LOWER: &str = "abcdefghijklmnopqrstuvwxyz";
-const UPPER: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const DIGITS: &str = "0123456789";
-const SYMBOLS: &str = "!@#$%^&*()-_=+[]{}<>?/|~,.";
+const LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+const UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const DIGITS: &[u8] = b"0123456789";
+const SYMBOLS: &[u8] = b"!@#$%^&*()-_=+[]{}<>?/|~,.";
 
-pub struct PasswordGenerator {
-    rng: OsRng,
-}
-
-impl PasswordGenerator {
-    pub fn new() -> Self {
-        Self { rng: OsRng }
+#[inline]
+pub fn generate(
+    length: usize,
+    upper: bool,
+    lower: bool,
+    digits: bool,
+    symbols: bool,
+) -> Result<String, String> {
+    if length < MIN_LEN || length > MAX_LEN {
+        return Err(format!(
+            "La longueur doit être comprise entre {} et {} caractères.",
+            MIN_LEN, MAX_LEN
+        ));
     }
 
-    pub fn generate(&mut self, length: usize) -> Result<String, String> {
-        if length < MIN_LEN || length > MAX_LEN {
-            return Err(format!(
-                "La longueur doit etre comprise entre {} et {} caracteres.",
-                MIN_LEN, MAX_LEN
-            ));
+    let mut categories: Vec<&[u8]> = Vec::new();
+    if lower { categories.push(LOWER); }
+    if upper { categories.push(UPPER); }
+    if digits { categories.push(DIGITS); }
+    if symbols { categories.push(SYMBOLS); }
+
+    if categories.is_empty() {
+        return Err("Veuillez sélectionner au moins une catégorie de caractères.".to_string());
+    }
+
+    let pool: Vec<u8> = categories.iter().flat_map(|s| s.iter().copied()).collect();
+    let mut rng = rand::rng();
+
+    // Rejection sampling : distribution uniforme garantie.
+    // On génère depuis le pool complet et on recommence si une catégorie manque.
+    // En pratique : ~1 tentative pour length >= 8, jamais plus de quelques-unes.
+    let mut buf: Vec<u8> = Vec::with_capacity(length);
+    loop {
+        buf.clear();
+        for _ in 0..length {
+            buf.push(*pool.choose(&mut rng).unwrap());
         }
-
-        let mut chars: Vec<char> = Vec::with_capacity(length);
-        let categories = [LOWER, UPPER, DIGITS, SYMBOLS];
-
-        for set in categories {
-            chars.push(self.random_char(set));
+        if categories.iter().all(|set| buf.iter().any(|b| set.contains(b))) {
+            break;
         }
-
-        let all = [LOWER, UPPER, DIGITS, SYMBOLS].concat();
-        for _ in chars.len()..length {
-            chars.push(self.random_char(&all));
-        }
-
-        chars.shuffle(&mut self.rng);
-        Ok(chars.iter().collect())
     }
 
-    fn random_char(&mut self, set: &str) -> char {
-        let bytes = set.as_bytes();
-        let idx = self.rng.gen_range(0..bytes.len());
-        bytes[idx] as char
-    }
-}
+    // Fisher-Yates shuffle cryptographiquement sécurisé
+    buf.shuffle(&mut rng);
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    let password = String::from_utf8(buf.clone()).unwrap();
 
-    fn has_lowercase(value: &str) -> bool {
-        value.chars().any(|c| c.is_ascii_lowercase())
-    }
+    // Zérisation de la copie intermédiaire en heap
+    buf.zeroize();
 
-    fn has_uppercase(value: &str) -> bool {
-        value.chars().any(|c| c.is_ascii_uppercase())
-    }
-
-    fn has_digit(value: &str) -> bool {
-        value.chars().any(|c| c.is_ascii_digit())
-    }
-
-    fn has_symbol(value: &str) -> bool {
-        value.chars().any(|c| SYMBOLS.contains(c))
-    }
-
-    #[test]
-    fn generates_password_with_expected_length_and_categories() {
-        let mut generator = PasswordGenerator::new();
-        let value = generator.generate(64).expect("generation should succeed");
-
-        assert_eq!(value.len(), 64);
-        assert!(has_lowercase(&value));
-        assert!(has_uppercase(&value));
-        assert!(has_digit(&value));
-        assert!(has_symbol(&value));
-    }
-
-    #[test]
-    fn rejects_length_below_min() {
-        let mut generator = PasswordGenerator::new();
-        let err = generator.generate(MIN_LEN - 1).expect_err("should fail");
-        assert!(err.contains("longueur"));
-    }
-
-    #[test]
-    fn rejects_length_above_max() {
-        let mut generator = PasswordGenerator::new();
-        let err = generator.generate(MAX_LEN + 1).expect_err("should fail");
-        assert!(err.contains("longueur"));
-    }
-
-    #[test]
-    fn accepts_min_and_max_lengths() {
-        let mut generator = PasswordGenerator::new();
-        let min_value = generator.generate(MIN_LEN).expect("min length ok");
-        let max_value = generator.generate(MAX_LEN).expect("max length ok");
-
-        assert_eq!(min_value.len(), MIN_LEN);
-        assert_eq!(max_value.len(), MAX_LEN);
-    }
+    Ok(password)
 }

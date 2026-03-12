@@ -1,0 +1,33 @@
+update-readme-version:
+  stage: update-readme-version
+  image: oven/bun:alpine
+  before_script:
+    - apk add --no-cache git
+  script:
+    - |
+      # 1. Extraction version depuis Cargo.toml (source de vérité)
+      VERSION=$(grep '^version' src-tauri/Cargo.toml | head -1 | sed 's/.*= "\(.*\)"/\1/')
+      echo "Version détectée : $VERSION"
+
+      # 2. Remplacement sed
+      sed -i "s@Version-[0-9a-zA-Z._-]\+-6c63ff@Version-${VERSION}-6c63ff@g" README.md
+
+      # 3. Check diff
+      if git diff --quiet README.md; then
+        echo "README.md est déjà à jour."
+        exit 0
+      fi
+
+      # 4. Config Git
+      git config user.name "GitLab CI"
+      git config user.email "ci@gitlab.com"
+
+      # 5. Commit
+      git add README.md
+      git commit -m "chore(ci): sync README version badge to ${VERSION} [skip ci]"
+
+      # 6. Push
+      git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+      git push origin HEAD:${CI_COMMIT_REF_NAME}
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"'
