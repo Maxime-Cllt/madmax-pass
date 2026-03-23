@@ -53,7 +53,6 @@ const analyzeClassicalBitsEl = document.querySelector<HTMLElement>("#analyze-cla
 const analyzeQuantumBitsEl = document.querySelector<HTMLElement>("#analyze-quantum-bits");
 const analyzeEntropyPerCharEl = document.querySelector<HTMLElement>("#analyze-entropy-per-char");
 const analyzeScoreEl = document.querySelector<HTMLElement>("#analyze-score");
-const analyzeWarningsSection = document.querySelector<HTMLElement>("#analyze-warnings-section");
 const analyzeWarningsList = document.querySelector<HTMLElement>("#analyze-warnings-list");
 const analyzeCrackFastEl = document.querySelector<HTMLElement>("#analyze-crack-fast");
 const analyzeCrackSlowEl = document.querySelector<HTMLElement>("#analyze-crack-slow");
