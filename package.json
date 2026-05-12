@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "build": "bun run check && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.0",
-    "@tauri-apps/plugin-opener": "^2.5.4"
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
+    "@tauri-apps/api": "^2.11.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.1.2",

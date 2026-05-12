@@ -8,6 +8,12 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
     plugins: [svelte()],
 
+    // Tauri webviews (WKWebView / WebView2 / WebKitGTK) support modern ES — skip transpilation.
+    build: {
+        target: "esnext",
+        sourcemap: false,
+    },
+
     // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
     clearScreen: false,
     server: {
